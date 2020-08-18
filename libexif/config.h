@@ -25,6 +25,10 @@
 /* Define to 1 if you have the `localtime_r' function. */
 #define HAVE_LOCALTIME_R 1
 
+#ifdef _WIN32
+#undef HAVE_LOCALTIME_R
+#endif
+
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
 
