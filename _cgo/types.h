@@ -21,9 +21,14 @@
   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include <stdint.h>
+#include <libexif/exif-entry.h>
+
 typedef struct exif_value {
 	char *name;
 	char *value;
+	uint16_t ifd;
+	ExifEntry* entry;
 	struct exif_value* prev;
 } exif_value_t;
 

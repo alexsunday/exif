@@ -19,6 +19,10 @@ func TestOpen(t *testing.T) {
 	for key, val := range exif.Tags {
 		fmt.Printf("%s: %s\n", key, val)
 	}
+
+	for key, val := range exif.Raw {
+		fmt.Printf("%s: %d\n", key.String(), len(val.Raw))
+	}
 }
 
 func TestRead(t *testing.T) {
