@@ -1,5 +1,7 @@
 # Go (golang) bindings for libexif
 
+forked from [xiam/exif](https://github.com/xiam/exif), add windows support, add raw data export.
+
 Provides basic support for reading EXIF tags on files using [libexif][1] and
 CGO.
 
@@ -16,6 +18,12 @@ apt-get install -y libexif-dev
 
 # RedHat
 dnf install -y libexif-devel
+
+# windows
+cd libexif
+make
+cd ..
+go build
 ```
 
 Then grab the exif package with `go get`:
@@ -48,6 +56,11 @@ func main() {
     ...
     for key, val := range data.Tags {
         fmt.Printf("%s = %s\n", key, val)
+    }
+
+    // raw data export.
+    for key, val := range exif.Raw {
+      fmt.Printf("%s: %d\n", key.String(), len(val.Raw))
     }
 }
 ```
