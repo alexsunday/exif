@@ -12,7 +12,7 @@ func TestOpen(t *testing.T) {
 	exif := New()
 
 	// http://www.exif.org/samples/fujifilm-mx1700.jpg
-	err := exif.Open("_examples/resources/test.jpg")
+	err := exif.Open("_examples/resources/testlocation.jpg")
 	assert.NoError(t, err)
 	assert.True(t, len(exif.Tags) > 0)
 
@@ -21,7 +21,7 @@ func TestOpen(t *testing.T) {
 	}
 
 	for key, val := range exif.Raw {
-		fmt.Printf("%s: %d\n", key.String(), len(val.Raw))
+		fmt.Printf("%s: %d,%d\n", key.String(), val.Components, len(val.Raw))
 	}
 }
 
@@ -72,11 +72,22 @@ func TestGetLongitude(t *testing.T) {
 }
 
 func TestGetLatitude(t *testing.T) {
-	exif := New()
-	err := exif.Open("_examples/resources/testlocation.jpg")
+	e := New()
+	err := e.Open("_examples/resources/testlocation.jpg")
 	assert.NoError(t, err)
-	latitude, ok := exif.Tags["Latitude"]
+	latitude, ok := e.Tags["Latitude"]
 	assert.True(t, ok)
 
 	assert.Equal(t, "25, 21, 32.6101", latitude)
+
+	entry := e.GetEntry(3, 0x02)
+	assert.NotNil(t, entry)
+
+	rs, err := entry.UnsignedRational(e.Order)
+	assert.Nil(t, err)
+	assert.Equal(t, len(rs), 3)
+	assert.Equal(t, rs[0].Numerator, uint32(25))
+	assert.Equal(t, rs[1].Numerator, uint32(21))
+	assert.Equal(t, rs[2].Numerator, uint32(326101))
+	assert.Equal(t, rs[2].Denominator, uint32(10000))
 }

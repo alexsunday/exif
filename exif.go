@@ -26,6 +26,7 @@ package exif
 #include <stdlib.h>
 #include <libexif/exif-data.h>
 #include <libexif/exif-loader.h>
+#include <libexif/exif-byte-order.h>
 #include "_cgo/types.h"
 
 exif_value_t* pop_exif_value(exif_stack_t *);
@@ -49,44 +50,12 @@ var (
 	ErrFoundExifInData = errors.New(`found exif header. OK to call Parse`)
 )
 
-type EntryFormat int
-type Tag uint16
-
-type Entry struct {
-	Tag Tag
-	Format EntryFormat
-	Components int
-	Raw []byte
-}
-
-// ifd: [0: 2], tag: [2: 4], littleEndian
-type IfdTag [4]byte
-
-func (m *IfdTag) String() string {
-	return fmt.Sprintf("<ifd: %d, tag: %d>", m.Ifd(), m.Tag())
-}
-
-func NewIfdTag(ifd, tag uint16) IfdTag {
-	var out [4]byte
-	binary.LittleEndian.PutUint16(out[:2], ifd)
-	binary.LittleEndian.PutUint16(out[2: 4], tag)
-
-	return out
-}
-
-func (m *IfdTag) Ifd() uint16 {
-	return binary.LittleEndian.Uint16(m[:2])
-}
-
-func (m *IfdTag) Tag() uint16 {
-	return binary.LittleEndian.Uint16(m[2: 4])
-}
-
 // Data stores the EXIF tags of a file.
 type Data struct {
 	exifLoader *C.ExifLoader
 	Tags       map[string]string
 	Raw        map[IfdTag]Entry
+	Order      binary.ByteOrder
 }
 
 // New creates and returns a new exif.Data object.
@@ -107,9 +76,18 @@ func Read(file string) (*Data, error) {
 	return data, nil
 }
 
+func (d *Data)GetEntry(ifd, tag uint16) *Entry {
+	key := NewIfdTag(ifd, tag)
+	v, ok := d.Raw[key]
+	if ok {
+		return &v
+	}
+
+	return nil
+}
+
 // Open opens a file path and loads its EXIF data.
 func (d *Data) Open(file string) error {
-
 	cfile := C.CString(file)
 	defer C.free(unsafe.Pointer(cfile))
 
@@ -127,6 +105,14 @@ func (d *Data) parseExifData(exifData *C.ExifData) error {
 	values := C.exif_dump(exifData)
 	defer C.free(unsafe.Pointer(values))
 
+	// get byte order
+	order := C.exif_data_get_byte_order(exifData)
+	if order == C.EXIF_BYTE_ORDER_MOTOROLA {
+		d.Order = binary.BigEndian
+	} else if order == C.EXIF_BYTE_ORDER_INTEL {
+		d.Order = binary.LittleEndian
+	}
+
 	for {
 		value := C.pop_exif_value(values)
 		if value == nil {
@@ -135,10 +121,12 @@ func (d *Data) parseExifData(exifData *C.ExifData) error {
 			d.Tags[strings.Trim(C.GoString((*value).name), " ")] = strings.Trim(C.GoString((*value).value), " ")
 			cEntry := (*value).entry
 			tag := uint16(C.uint16_t((*cEntry).tag))
-			key := NewIfdTag(uint16(C.uint16_t((*value).ifd)), tag)
+			ifd := uint16(C.uint16_t((*value).ifd))
+			key := NewIfdTag(ifd, tag)
 
 			dataPtr := (*cEntry).data
 			d.Raw[key] = Entry{
+				Ifd: Ifd(ifd),
 				Tag: Tag(tag),
 				Format: EntryFormat(int(C.int((*cEntry).format))),
 				Components: int(C.ulong((*cEntry).components)),
