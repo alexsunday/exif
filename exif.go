@@ -28,11 +28,6 @@ package exif
 #include <libexif/exif-loader.h>
 #include <libexif/exif-content.h>
 #include <libexif/exif-byte-order.h>
-#include "_cgo/types.h"
-
-exif_value_t* pop_exif_value(exif_stack_t *);
-void free_exif_value(exif_value_t* n);
-exif_stack_t* exif_dump(ExifData *);
 */
 import "C"
 
@@ -41,7 +36,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"strings"
 	"unsafe"
 )
 
@@ -54,7 +48,6 @@ var (
 // Data stores the EXIF tags of a file.
 type Data struct {
 	exifLoader *C.ExifLoader
-	Tags       map[string]string
 	Raw        map[IfdTag]Entry
 	Order      binary.ByteOrder
 }
@@ -62,7 +55,6 @@ type Data struct {
 // New creates and returns a new exif.Data object.
 func New() *Data {
 	data := &Data{
-		Tags: make(map[string]string),
 		Raw: make(map[IfdTag]Entry),
 	}
 	return data
@@ -77,16 +69,6 @@ func Read(file string) (*Data, error) {
 	return data, nil
 }
 
-func (d *Data)GetEntry(ifd, tag uint16) *Entry {
-	key := NewIfdTag(ifd, tag)
-	v, ok := d.Raw[key]
-	if ok {
-		return &v
-	}
-
-	return nil
-}
-
 // Open opens a file path and loads its EXIF data.
 func (d *Data) Open(file string) error {
 	cfile := C.CString(file)
@@ -99,29 +81,7 @@ func (d *Data) Open(file string) error {
 	}
 	defer C.exif_data_unref(exifData)
 
-	err := d.parseRaw(exifData)
-	if err != nil {
-		return err
-	}
-
-	return d.parseExifData(exifData)
-}
-
-func (d *Data) parseExifData(exifData *C.ExifData) error {
-	values := C.exif_dump(exifData)
-	defer C.free(unsafe.Pointer(values))
-
-	for {
-		value := C.pop_exif_value(values)
-		if value == nil {
-			break
-		} else {
-			d.Tags[strings.Trim(C.GoString((*value).name), " ")] = strings.Trim(C.GoString((*value).value), " ")
-		}
-		C.free_exif_value(value)
-	}
-
-	return nil
+	return d.parseRaw(exifData)
 }
 
 func (d *Data) parseRaw(ed *C.ExifData) error {
@@ -141,6 +101,9 @@ func (d *Data) parseRaw(ed *C.ExifData) error {
 		length := int((*content).count)
 		var pEntries **C.ExifEntry = (*content).entries
 
+		if pEntries == nil {
+			continue
+		}
 		sEntries := (*[1<<30] *C.ExifEntry)(unsafe.Pointer(pEntries))[:length:length]
 		for _, pEntry := range sEntries {
 			entry := *pEntry
@@ -200,12 +163,7 @@ func (d *Data) Parse() error {
 		C.exif_data_unref(exifData)
 	}()
 
-	err := d.parseRaw(exifData)
-	if err != nil {
-		return err
-	}
-
-	return d.parseExifData(exifData)
+	return d.parseRaw(exifData)
 }
 
 func (d *Data) cleanup() {
