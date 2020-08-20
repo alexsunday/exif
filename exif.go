@@ -163,6 +163,7 @@ func (d *Data) parseRaw(ed *C.ExifData) error {
 				Format: EntryFormat(int(C.int(entry.format))),
 				Components: int(C.ulong(entry.components)),
 				Raw: raw,
+				order: d.Order,
 			}
 		}
 	}
