@@ -26,6 +26,7 @@ package exif
 #include <stdlib.h>
 #include <libexif/exif-data.h>
 #include <libexif/exif-loader.h>
+#include <libexif/exif-content.h>
 #include <libexif/exif-byte-order.h>
 #include "_cgo/types.h"
 
@@ -98,6 +99,11 @@ func (d *Data) Open(file string) error {
 	}
 	defer C.exif_data_unref(exifData)
 
+	err := d.parseRaw(exifData)
+	if err != nil {
+		return err
+	}
+
 	return d.parseExifData(exifData)
 }
 
@@ -105,35 +111,60 @@ func (d *Data) parseExifData(exifData *C.ExifData) error {
 	values := C.exif_dump(exifData)
 	defer C.free(unsafe.Pointer(values))
 
-	// get byte order
-	order := C.exif_data_get_byte_order(exifData)
-	if order == C.EXIF_BYTE_ORDER_MOTOROLA {
-		d.Order = binary.BigEndian
-	} else if order == C.EXIF_BYTE_ORDER_INTEL {
-		d.Order = binary.LittleEndian
-	}
-
 	for {
 		value := C.pop_exif_value(values)
 		if value == nil {
 			break
 		} else {
 			d.Tags[strings.Trim(C.GoString((*value).name), " ")] = strings.Trim(C.GoString((*value).value), " ")
-			cEntry := (*value).entry
-			tag := uint16(C.uint16_t((*cEntry).tag))
-			ifd := uint16(C.uint16_t((*value).ifd))
+		}
+		C.free_exif_value(value)
+	}
+
+	return nil
+}
+
+func (d *Data) parseRaw(ed *C.ExifData) error {
+	var raw []byte
+	var tag uint16 = 0
+	var ifd uint16 = 0
+
+	order := C.exif_data_get_byte_order(ed)
+	if order == C.EXIF_BYTE_ORDER_MOTOROLA {
+		d.Order = binary.BigEndian
+	} else if order == C.EXIF_BYTE_ORDER_INTEL {
+		d.Order = binary.LittleEndian
+	}
+
+	for i:=0; i!= C.EXIF_IFD_COUNT; i++ {
+		content := (*ed).ifd[i]
+		length := int((*content).count)
+		var pEntries **C.ExifEntry = (*content).entries
+
+		sEntries := (*[1<<30] *C.ExifEntry)(unsafe.Pointer(pEntries))[:length:length]
+		for _, pEntry := range sEntries {
+			entry := *pEntry
+			tag = uint16(C.uint16_t(entry.tag))
+
+			if pEntry == nil {
+				ifd = uint16(C.uint16_t(C.EXIF_IFD_COUNT))
+			} else {
+				ifd = uint16(C.uint16_t(C.exif_content_get_ifd(entry.parent)))
+			}
 			key := NewIfdTag(ifd, tag)
 
-			dataPtr := (*cEntry).data
+			if entry.data != nil && entry.size != 0 {
+				raw = C.GoBytes(unsafe.Pointer(entry.data), C.int(entry.size))
+			}
+
 			d.Raw[key] = Entry{
 				Ifd: Ifd(ifd),
 				Tag: Tag(tag),
-				Format: EntryFormat(int(C.int((*cEntry).format))),
-				Components: int(C.ulong((*cEntry).components)),
-				Raw: C.GoBytes(unsafe.Pointer(dataPtr), C.int(C.uint((*cEntry).size))),
+				Format: EntryFormat(int(C.int(entry.format))),
+				Components: int(C.ulong(entry.components)),
+				Raw: raw,
 			}
 		}
-		C.free_exif_value(value)
 	}
 
 	return nil
@@ -167,6 +198,11 @@ func (d *Data) Parse() error {
 	defer func() {
 		C.exif_data_unref(exifData)
 	}()
+
+	err := d.parseRaw(exifData)
+	if err != nil {
+		return err
+	}
 
 	return d.parseExifData(exifData)
 }

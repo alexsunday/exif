@@ -3,6 +3,7 @@ package exif
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"testing"
@@ -12,7 +13,9 @@ func TestOpen(t *testing.T) {
 	exif := New()
 
 	// http://www.exif.org/samples/fujifilm-mx1700.jpg
-	err := exif.Open("_examples/resources/testlocation.jpg")
+	f1 := "D:\\alexs\\Documents\\IMG_20121230_140323.jpg"
+	//f1 := "_examples/resources/testlocation.jpg"
+	err := exif.Open(f1)
 	assert.NoError(t, err)
 	assert.True(t, len(exif.Tags) > 0)
 
@@ -22,6 +25,34 @@ func TestOpen(t *testing.T) {
 
 	for key, val := range exif.Raw {
 		fmt.Printf("%s: %d,%d\n", key.String(), val.Components, len(val.Raw))
+	}
+}
+
+func TestReadRaw(t *testing.T) {
+	f1 := "D:\\alexs\\Documents\\IMG_20121230_140323.jpg"
+	f, err := os.Open(f1)
+	require.Nil(t, err)
+
+	e := New()
+	_, err = io.Copy(e, f)
+	require.Equal(t, err, ErrFoundExifInData)
+
+	err = e.Parse()
+	require.Nil(t, err)
+
+	for key, val := range e.Raw {
+		fmt.Printf("%s => %s\n", key.String(), val.String())
+	}
+
+	entry := e.GetEntry(3, 0x02)
+	assert.NotNil(t, entry)
+
+	rs, err := entry.UnsignedRational(e.Order)
+	assert.Nil(t, err)
+	assert.Equal(t, len(rs), 3)
+
+	for _, r := range rs {
+		fmt.Printf("%s\n", r.String())
 	}
 }
 

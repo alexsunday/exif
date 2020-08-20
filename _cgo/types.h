@@ -27,8 +27,6 @@
 typedef struct exif_value {
 	char *name;
 	char *value;
-	uint16_t ifd;
-	ExifEntry* entry;
 	struct exif_value* prev;
 } exif_value_t;
 

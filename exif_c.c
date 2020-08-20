@@ -49,24 +49,8 @@ void import_entry(ExifEntry* entry, void* user_data) {
   ExifIfd ifd = exif_entry_get_ifd(entry);
 
   strncpy(value->name, exif_tag_get_title_in_ifd(entry->tag, ifd), EXIF_VALUE_MAXLEN);
-  value->ifd = (uint16_t) ifd;
   strncpy(value->value, exif_entry_get_value(entry, exif_text, EXIF_VALUE_MAXLEN), EXIF_VALUE_MAXLEN);
 
-  // copy entry
-  if(entry->data) {
-    value->entry->tag = entry->tag;
-    value->entry->format = entry->format;
-    value->entry->components = entry->components;
-    value->entry->size = entry->size;
-
-    entry_data = (unsigned char *)malloc(entry->size + 1);
-    if(!entry_data) {
-      printf("malloc failed.\r\n");
-    }
-    value->entry->data = entry_data;
-    memcpy(value->entry->data, entry->data, entry->size);
-    value->entry->data[entry->size + 1] = 0;
-  }
   push_exif_value(user_data, value);
 }
 
@@ -84,11 +68,9 @@ exif_value_t* new_exif_value() {
 
   n->name = (char *)malloc(sizeof(char)*EXIF_VALUE_MAXLEN);
   n->value = (char *)malloc(sizeof(char)*EXIF_VALUE_MAXLEN);
-  n->entry = (ExifEntry*)malloc(sizeof(ExifEntry));
 
   n->name[0]  = '\0';
   n->value[0] = '\0';
-  n->entry->data = NULL;
   n->prev     = NULL;
   return n;
 }
@@ -111,11 +93,6 @@ exif_value_t* pop_exif_value(exif_stack_t *stack) {
 void free_exif_value(exif_value_t* n) {
   free(n->name);
   free(n->value);
-
-  if(n->entry->data) {
-    free(n->entry->data);
-  }
-  free(n->entry);
 
   free(n);
 }
